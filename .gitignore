@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Variables de entorno y configuración sensible
+.env
+.env.*
+*.env
+
+# Logs
+*.log
+logs/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# Sistema operativo
+desktop.ini
+ehthumbs.db
+
+# Flask / Werkzeug
+instance/
+.webassets-cache
+
+# pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# mypy / type stubs
+.mypy_cache/

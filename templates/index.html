@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de monitoreo SNMP en tiempo real para impresoras de red. Estado, alertas de papel/tóner/puertas y contadores de páginas.">
+    <title>Monitor SNMP de Impresoras</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS Excel Library -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --card-bg: rgba(22, 30, 46, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --accent: #8b5cf6;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --status-online: #10b981;
+            --status-offline: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--card-border);
+            padding: 1.2rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .brand-icon {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .status-badge {
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.online {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.offline {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+        }
+
+        .config-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .config-panel h2 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .form-group input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.7rem 0.9rem;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .form-group input::placeholder {
+            color: #475569;
+        }
+
+        .form-group.hosts {
+            grid-column: 1 / -1;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 1.6rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            box-shadow: none;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+
+        .btn-excel {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            box-shadow: none;
+        }
+
+        .btn-excel:hover {
+            background: rgba(16, 185, 129, 0.25);
+            color: #6ee7b7;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-left: auto;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .auto-refresh input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .error-banner {
+            display: none;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 1rem 1.2rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .error-banner.active {
+            display: block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            margin: 0 auto 1.2rem;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .printer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .printer-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .printer-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        .card-header {
+            padding: 1.2rem;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        .card-header h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .host-chip {
+            font-size: 0.75rem;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            white-space: nowrap;
+            font-family: monospace;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .status-dot.online {
+            background: var(--status-online);
+            box-shadow: 0 0 10px var(--status-online);
+        }
+
+        .status-dot.offline {
+            background: var(--status-offline);
+            box-shadow: 0 0 10px var(--status-offline);
+        }
+
+        .card-body {
+            padding: 1.2rem;
+        }
+
+        /* Alertas de Estado */
+        .alert-box {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .alert-badge {
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            animation: pulseAlert 2s infinite ease-in-out;
+        }
+
+        @keyframes pulseAlert {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.85; }
+        }
+
+        .alert-badge.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert-badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .alert-badge.ok {
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            animation: none;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .info-item {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.8rem;
+        }
+
+        .info-item .label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.3rem;
+            font-weight: 600;
+        }
+
+        .info-item .value {
+            font-size: 1rem;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .info-item .value.mono { color: var(--text-muted); }
+        .info-item .value.color { color: #f59e0b; }
+
+        .section-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+
+        .supply-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .supply-item {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.8rem;
+        }
+
+        .supply-type {
+            font-size: 0.68rem;
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+            letter-spacing: 0.04em;
+        }
+
+        .supply-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .supply-name {
+            color: var(--text-main);
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 75%;
+        }
+
+        .supply-pct {
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .supply-pct.ok { color: var(--status-online); }
+        .supply-pct.low { color: var(--warning); }
+        .supply-pct.critical { color: var(--status-offline); }
+        .supply-pct.na { color: var(--text-muted); }
+
+        .progress-bar {
+            width: 100%;
+            height: 7px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: var(--status-online);
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .progress-fill.low { background: var(--warning); }
+        .progress-fill.critical { background: var(--status-offline); }
+        .progress-fill.na { background: rgba(255, 255, 255, 0.15); }
+        .progress-fill.paper { background: #38bdf8; }
+
+        .status-section {
+            margin-bottom: 1.2rem;
+        }
+
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .status-row {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.7rem 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .status-row-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .badge-pill {
+            padding: 0.25rem 0.65rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-pill.ok {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-pill.danger {
+            background: rgba(239, 68, 68, 0.18);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .badge-pill.warning {
+            background: rgba(245, 158, 11, 0.18);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+
+        /* Pestañas / Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+            max-width: 1300px;
+            margin: 1.5rem auto 0;
+            padding: 0 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .nav-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.8rem 1.4rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-main);
+        }
+
+        .nav-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Sección ¿Qué hace esta aplicación? */
+        .about-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2.2rem;
+            color: var(--text-main);
+            line-height: 1.7;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        .about-card h2 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1.2rem;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .about-card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 1.6rem 0 1rem;
+            color: var(--primary);
+        }
+
+        .about-card p {
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+            font-size: 0.95rem;
+        }
+
+        .about-feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 1rem 0 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+
+        .about-feature-list li {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.85rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.93rem;
+            color: #e2e8f0;
+        }
+
+        .about-feature-list li span {
+            font-size: 1.2rem;
+        }
+
+        .about-highlight-box {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid var(--primary);
+            padding: 1.2rem 1.5rem;
+            border-radius: 0 12px 12px 0;
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        /* Página de Bienvenida */
+        .welcome-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 2.5rem 2rem;
+            color: var(--text-main);
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .welcome-hero-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.8rem;
+            letter-spacing: -0.02em;
+        }
+
+        .welcome-hero-sub {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            max-width: 650px;
+            margin: 0 auto 1.8rem;
+            line-height: 1.6;
+        }
+
+        .btn-welcome-cta {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            padding: 0.9rem 2.2rem;
+            font-size: 1rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+            transition: all 0.25s ease;
+            margin-bottom: 2.5rem;
+        }
+
+        .btn-welcome-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+
+        .welcome-img-wrapper {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            margin: 0 auto 2.5rem;
+            max-width: 950px;
+            background: rgba(15, 23, 42, 0.6);
+        }
+
+        .welcome-img {
+            width: 100%;
+            height: auto;
+            max-height: 520px;
+            display: block;
+            object-fit: cover;
+            border-radius: 16px;
+            transition: transform 0.4s ease;
+        }
+
+        .welcome-img-wrapper:hover .welcome-img {
+            transform: scale(1.015);
+        }
+
+        .welcome-img-badge {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--card-border);
+            color: #93c5fd;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .welcome-features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+            text-align: left;
+            margin-top: 1rem;
+        }
+
+        .welcome-feature-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 1.4rem;
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .welcome-feature-card:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .welcome-feature-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .welcome-feature-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.4rem;
+        }
+
+        .welcome-feature-desc {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .empty-state {
+            display: none;
+            text-align: center;
+            padding: 4rem 1rem;
+            color: var(--text-muted);
+            background: var(--card-bg);
+            border: 1px dashed var(--card-border);
+            border-radius: 16px;
+        }
+
+        .empty-state.active {
+            display: block;
+        }
+
+        .empty-state .big-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+
+        /* Sección Quiénes Somos */
+        .team-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            overflow: hidden;
+            color: var(--text-main);
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.3);
+            margin-top: 1rem;
+        }
+
+        .team-banner-header {
+            position: relative;
+            width: 100%;
+            background: #050d1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        .team-banner-bg {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 480px;
+            object-fit: contain;
+            object-position: center center;
+            filter: brightness(0.85) contrast(1.05);
+            z-index: 1;
+        }
+
+        .team-banner-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                rgba(5, 13, 26, 0.05) 0%,
+                rgba(5, 13, 26, 0.25) 75%,
+                rgba(5, 13, 26, 0.65) 100%);
+            z-index: 2;
+        }
+
+        .team-banner-content {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+            width: 100%;
+            max-width: 820px;
+            padding: 0 2rem;
+        }
+
+        .team-banner-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+        }
+
+        .team-banner-sub {
+            font-size: 1.15rem;
+            color: #93c5fd;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+        }
+
+        .team-body {
+            padding: 2.2rem;
+            line-height: 1.7;
+        }
+
+        .team-intro-text p {
+            color: #cbd5e1;
+            font-size: 0.98rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .profiles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.8rem;
+            margin: 2rem 0;
+        }
+
+        .profile-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.8rem;
+            transition: transform 0.25s ease, border-color 0.25s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .profile-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .profile-avatar {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .profile-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .profile-role {
+            font-size: 0.82rem;
+            color: var(--primary);
+            font-weight: 600;
+            line-height: 1.3;
+            margin-top: 0.2rem;
+        }
+
+        .profile-bio {
+            color: #cbd5e1;
+            font-size: 0.92rem;
+            line-height: 1.65;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .vision-box {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 2rem;
+            position: relative;
+        }
+
+        .vision-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .vision-text {
+            color: #e2e8f0;
+            font-size: 0.96rem;
+            line-height: 1.7;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #475569;
+            font-size: 0.8rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="brand">
+            <span class="brand-icon">🖨️</span>
+            <h1>Monitor SNMP de Impresoras</h1>
+        </div>
+        <span class="status-badge" id="api-status">Comprobando API...</span>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="tab-welcome">
+            <span>🏠</span> Bienvenida
+        </button>
+        <button class="nav-tab" data-tab="tab-team">
+            <span>👥</span> Quiénes Somos
+        </button>
+        <button class="nav-tab" data-tab="tab-monitor">
+            <span>📊</span> Panel de Monitoreo
+        </button>
+        <button class="nav-tab" data-tab="tab-about">
+            <span>❓</span> ¿Qué hace esta aplicación?
+        </button>
+    </nav>
+
+    <main class="container">
+        <!-- Tab 0: Bienvenida -->
+        <div class="tab-content active" id="tab-welcome">
+            <section class="welcome-card">
+                <h2 class="welcome-hero-title">Bienvenido al Monitor SNMP de Impresoras</h2>
+                <p class="welcome-hero-sub">
+                    Plataforma centralizada de supervisión en tiempo real para la infraestructura de impresión de red corporativa.
+                </p>
+                <button class="btn-welcome-cta" id="btn-go-monitor">
+                    <span>🔍</span> Acceder al Panel de Monitoreo
+                </button>
+
+                <div class="welcome-img-wrapper">
+                    <img src="/fondo.png" alt="Imagen de Bienvenida del Monitor SNMP" class="welcome-img">
+                    <span class="welcome-img-badge">✨ Infraestructura de Impresión SNMP v2c</span>
+                </div>
+
+                <div class="welcome-features-grid">
+                    <div class="welcome-feature-card">
+                        <div class="welcome-feature-icon">⚡</div>
+                        <div class="welcome-feature-title">Alto Rendimiento</div>
+                        <div class="welcome-feature-desc">Consultas concurrentes multihilo a decenas de impresoras en paralelo con tiempos de respuesta optimizados.</div>
+                    </div>
+                    <div class="welcome-feature-card">
+                        <div class="welcome-feature-icon">🎯</div>
+                        <div class="welcome-feature-title">Auditoría Precisa</div>
+                        <div class="welcome-feature-desc">Lectura de contadores monocromo/color, números de serie y niveles porcentuales de suministros de tóner/tinta.</div>
+                    </div>
+                    <div class="welcome-feature-card">
+                        <div class="welcome-feature-icon">📊</div>
+                        <div class="welcome-feature-desc">Alertas activas para cubiertas abiertas y exportación instantánea de reportes a Microsoft Excel (.xlsx).</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <!-- Tab 1: Panel de Monitoreo -->
+        <div class="tab-content" id="tab-monitor">
+            <section class="config-panel">
+                <h2>Configuración de Consulta</h2>
+                <div class="form-grid">
+                    <div class="form-group hosts">
+                        <label for="hosts">IPs de impresoras (separadas por coma)</label>
+                        <input type="text" id="hosts" placeholder="Ej: 192.168.100.57, 192.168.100.58" value="{{ initial_hosts or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="community">Comunidad SNMP</label>
+                        <input type="text" id="community" value="public">
+                    </div>
+                    <div class="form-group">
+                        <label for="port">Puerto SNMP</label>
+                        <input type="number" id="port" value="161" min="1" max="65535">
+                    </div>
+                    <div class="form-group">
+                        <label for="timeout">Timeout (seg)</label>
+                        <input type="number" id="timeout" value="3" min="1" max="30">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" id="btn-query">
+                        <span>🔍</span> Consultar Impresoras
+                    </button>
+                    <button class="btn btn-secondary btn-excel" id="btn-export">
+                        <span>📊</span> Exportar a Excel
+                    </button>
+                    <button class="btn btn-secondary" id="btn-clear">Limpiar</button>
+                    <label class="auto-refresh">
+                        <input type="checkbox" id="auto-refresh"> Auto-refrescar cada 60s
+                    </label>
+                </div>
+            </section>
+
+            <div class="error-banner" id="error-banner"></div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Consultando impresoras vía SNMP v2c...</p>
+            </div>
+
+            <div class="empty-state" id="empty-state">
+                <div class="big-icon">🖨️</div>
+                <p style="font-size: 1.1rem; color: var(--text-main); font-weight: 600;">Sin impresoras consultadas</p>
+                <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                    Ingresa una o más direcciones IP de impresoras de red y presiona "Consultar Impresoras".
+                </p>
+            </div>
+
+            <section class="printer-grid" id="printer-grid"></section>
+        </div>
+
+        <!-- Tab 2: ¿Qué hace esta aplicación? -->
+        <div class="tab-content" id="tab-about">
+            <section class="about-card">
+                <h2>¿Qué hace esta aplicación?</h2>
+                <p>
+                    Esta aplicación es una herramienta que permite visualizar, desde un único lugar, la información más importante de las impresoras conectadas a una red.
+                </p>
+                <p>
+                    En lugar de revisar cada impresora de forma individual, el usuario puede ingresar las direcciones IP de los equipos y la aplicación recopila automáticamente su información para mostrarla en un panel web claro y organizado.
+                </p>
+
+                <h3>Entre los datos que presenta se encuentran:</h3>
+                <ul class="about-feature-list">
+                    <li><span>🌐</span> <strong>Estado de conexión</strong> de cada impresora.</li>
+                    <li><span>🖨️</span> <strong>Modelo</strong> del equipo.</li>
+                    <li><span>🔢</span> <strong>Número de serie</strong>.</li>
+                    <li><span>📄</span> <strong>Cantidad total</strong> de páginas impresas.</li>
+                    <li><span>🎨</span> <strong>Contadores de impresiones</strong> en blanco y negro y a color (cuando la impresora los proporciona).</li>
+                    <li><span>🧪</span> <strong>Nivel de los suministros</strong>, como tóner o tinta, indicando el porcentaje disponible.</li>
+                </ul>
+
+                <p>
+                    Toda esta información se muestra en una interfaz sencilla e intuitiva, permitiendo revisar rápidamente el estado de varias impresoras al mismo tiempo, sin necesidad de acceder a la página web de cada una.
+                </p>
+                <p>
+                    Además, la aplicación incorpora una opción para exportar la información a <strong>Microsoft Excel</strong>, facilitando la generación de reportes, el control de inventario y el análisis del uso de los equipos.
+                </p>
+                <p>
+                    La información también puede actualizarse periódicamente para reflejar los datos más recientes obtenidos directamente desde las impresoras.
+                </p>
+
+                <div class="about-highlight-box">
+                    <strong>En resumen:</strong> Esta aplicación actúa como un panel de consulta centralizado, que permite visualizar el estado y la información de múltiples impresoras de red de forma rápida, ordenada y eficiente, simplificando el trabajo de los equipos de soporte técnico y administración de infraestructura.
+                </div>
+            </section>
+        </div>
+
+        <!-- Tab: Quiénes Somos -->
+        <div class="tab-content" id="tab-team">
+            <section class="team-card">
+                <div class="team-banner-header">
+                    <img src="/Banner.png" alt="Banner Quiénes Somos" class="team-banner-bg">
+                    <div class="team-banner-overlay"></div>
+                    <div class="team-banner-content">
+                        <h2 class="team-banner-title">Quiénes Somos</h2>
+                        <div class="team-banner-sub">Experiencia que transforma datos en decisiones</div>
+                    </div>
+                </div>
+
+                <div class="team-body">
+                    <div class="team-intro-text">
+                        <p>
+                            Este proyecto colaborativo reúne la experiencia de dos profesionales con más de 30 años de trayectoria en tecnologías de la información, infraestructura de impresión, automatización y gestión de servicios tecnológicos.
+                        </p>
+                        <p>
+                            Nuestro propósito es desarrollar soluciones que permitan aprovechar la información generada por las impresoras como un activo estratégico para las organizaciones. Mediante el uso de los estándares SNMP y la interpretación de los OID (Object Identifier), capturamos información operacional en tiempo real para convertirla en indicadores de gestión, análisis predictivo y conocimiento útil para la toma de decisiones.
+                        </p>
+                        <p>
+                            Combinamos experiencia técnica con herramientas de automatización, analítica de datos e Inteligencia Artificial para transformar grandes volúmenes de información en procesos más eficientes, reduciendo costos, aumentando la disponibilidad de los equipos y mejorando la gestión de la infraestructura de impresión.
+                        </p>
+                        <p style="font-weight: 600; color: #f1f5f9; background: rgba(59, 130, 246, 0.1); padding: 0.8rem 1.2rem; border-radius: 8px; border-left: 3px solid var(--primary);">
+                            Creemos que la transformación digital comienza con la capacidad de convertir los datos en información confiable y la información en decisiones inteligentes.
+                        </p>
+                    </div>
+
+                    <div class="profiles-grid">
+                        <!-- Perfil 1: José Salinas -->
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <div class="profile-avatar">🖨️</div>
+                                <div>
+                                    <div class="profile-name">José Salinas</div>
+                                    <div class="profile-role">Especialista en Infraestructura de Impresión y Gestión Documental</div>
+                                </div>
+                            </div>
+                            <div class="profile-bio">
+                                <p>Con más de tres décadas de experiencia en el sector tecnológico, José Salinas ha participado en el diseño, implementación, administración y optimización de infraestructuras de impresión para organizaciones de distintos tamaños y sectores.</p>
+                                <p>Su experiencia se centra en la gestión de plataformas de impresión administrada, monitoreo de dispositivos, administración de servidores de impresión y optimización de procesos documentales. A lo largo de su trayectoria ha liderado proyectos orientados a mejorar la disponibilidad de los servicios, optimizar recursos y reducir costos operacionales mediante una gestión eficiente de la infraestructura de impresión.</p>
+                                <p>Su conocimiento constituye la base técnica para la obtención e interpretación de la información que los dispositivos entregan mediante los estándares SNMP y OID.</p>
+                            </div>
+                        </div>
+
+                        <!-- Perfil 2: Marco Maldonado -->
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <div class="profile-avatar">⚡</div>
+                                <div>
+                                    <div class="profile-name">Marco Maldonado</div>
+                                    <div class="profile-role">Ingeniero en Electrónica · Infraestructura TI · Inteligencia Artificial</div>
+                                </div>
+                            </div>
+                            <div class="profile-bio">
+                                <p>Marco Maldonado posee más de treinta años de experiencia en infraestructura tecnológica, continuidad operacional, soporte especializado y gestión de servicios TI.</p>
+                                <p>Su trayectoria combina experiencia en liderazgo técnico con una permanente actualización en tecnologías emergentes como Inteligencia Artificial, automatización, programación, analítica de datos y eficiencia energética.</p>
+                                <p>Dentro de este proyecto, lidera el desarrollo de herramientas que permiten procesar la información obtenida desde la infraestructura de impresión, aplicando modelos de automatización e inteligencia artificial para generar análisis, indicadores, alertas y conocimiento que apoyen la toma de decisiones basada en datos.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vision-box">
+                        <div class="vision-title">
+                            <span>🎯</span> Nuestra Visión
+                        </div>
+                        <div class="vision-text">
+                            <p>Nuestro objetivo es impulsar una nueva forma de administrar la infraestructura de impresión, donde cada dispositivo aporte información valiosa para mejorar la eficiencia operacional.</p>
+                            <p>Mediante la integración de SNMP, OID, automatización, analítica de datos e Inteligencia Artificial, desarrollamos soluciones que transforman datos técnicos en información estratégica, facilitando la supervisión, el análisis del comportamiento de los equipos y la optimización continua de los recursos tecnológicos.</p>
+                            <p><strong>Más que monitorear impresoras, buscamos entregar a las organizaciones una plataforma de conocimiento que permita anticipar problemas, optimizar procesos y apoyar decisiones con información precisa, oportuna y confiable.</strong></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        Monitor SNMP de Impresoras · Python + Flask + pysnmp 7.x · v1.4 (Alertas de Estado)
+    </footer>
+
+    <script>
+        const apiStatusEl = document.getElementById('api-status');
+        const printerGrid = document.getElementById('printer-grid');
+        const errorBanner = document.getElementById('error-banner');
+        const loadingEl = document.getElementById('loading');
+        const emptyState = document.getElementById('empty-state');
+        const btnQuery = document.getElementById('btn-query');
+        const btnExport = document.getElementById('btn-export');
+        const btnClear = document.getElementById('btn-clear');
+        const autoRefresh = document.getElementById('auto-refresh');
+        const hostsInput = document.getElementById('hosts');
+
+        let autoRefreshTimer = null;
+        let currentPrintersData = [];
+
+        // Comprobar estado del API
+        async function checkApi() {
+            try {
+                const res = await fetch('/api/health');
+                if (res.ok) {
+                    apiStatusEl.textContent = '● API en línea';
+                    apiStatusEl.className = 'status-badge online';
+                } else {
+                    apiStatusEl.textContent = '● API con problemas';
+                    apiStatusEl.className = 'status-badge offline';
+                }
+            } catch (e) {
+                apiStatusEl.textContent = '● API sin conexión';
+                apiStatusEl.className = 'status-badge offline';
+            }
+        }
+
+        function formatNumber(n) {
+            return (n || 0).toLocaleString('es-CL');
+        }
+
+        function supplyPctClass(pct) {
+            if (pct === null || pct === undefined) return 'na';
+            if (pct <= 15) return 'critical';
+            if (pct <= 30) return 'low';
+            return 'ok';
+        }
+
+        function progressColorClass(pct) {
+            if (pct === null || pct === undefined) return 'na';
+            if (pct <= 15) return 'critical';
+            if (pct <= 30) return 'low';
+            return '';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const el = document.createElement('div');
+            el.textContent = String(str);
+            return el.innerHTML;
+        }
+
+        function renderPrinterCard(printer) {
+            const offline = !printer.en_linea;
+            const card = document.createElement('div');
+            card.className = 'printer-card';
+
+            // Alertas
+            const puertaAbierta = printer.puerta_abierta || false;
+            const faltaPapel = printer.falta_papel || false;
+            const sinToner = printer.sin_toner || false;
+
+            let alertsHtml = '';
+            if (offline) {
+                alertsHtml = `<div class="alert-box"><div class="alert-badge danger"><span>🚫</span> Sin respuesta de red</div></div>`;
+            } else {
+                let alertItems = [];
+                if (puertaAbierta) {
+                    alertItems.push(`<div class="alert-badge danger"><span>🚪</span> Puerta / Tapa abierta</div>`);
+                }
+                if (faltaPapel) {
+                    alertItems.push(`<div class="alert-badge warning"><span>📄</span> Falta Papel (Bandeja vacía)</div>`);
+                }
+                if (sinToner) {
+                    alertItems.push(`<div class="alert-badge danger"><span>🪫</span> Sin Tóner / Cartucho agotado</div>`);
+                }
+
+                if (alertItems.length > 0) {
+                    alertsHtml = `<div class="alert-box">${alertItems.join('')}</div>`;
+                } else {
+                    alertsHtml = `<div class="alert-box"><div class="alert-badge ok"><span>✅</span> Estado OK - Sin Alertas</div></div>`;
+                }
+            }
+
+            // Estado de Puertas / Cubiertas
+            let doorsHtml = '';
+            if (!offline) {
+                if (printer.puertas && printer.puertas.length > 0) {
+                    doorsHtml = '<div class="status-section"><div class="section-title">🚪 Estado de Puertas y Cubiertas</div><div class="status-list">';
+                    printer.puertas.forEach(d => {
+                        const isOpen = d.abierta;
+                        doorsHtml += `
+                            <div class="status-row">
+                                <div class="status-row-title">
+                                    <span>🚪</span>
+                                    <span>${escapeHtml(d.nombre)}</span>
+                                </div>
+                                <span class="badge-pill ${isOpen ? 'danger' : 'ok'}">
+                                    ${isOpen ? '🔴 ABIERTA' : '🟢 Cerrada'}
+                                </span>
+                            </div>`;
+                    });
+                    doorsHtml += '</div></div>';
+                } else {
+                    const isOpen = printer.puerta_abierta;
+                    doorsHtml = `
+                        <div class="status-section">
+                            <div class="section-title">🚪 Estado de Puertas y Cubiertas</div>
+                            <div class="status-list">
+                                <div class="status-row">
+                                    <div class="status-row-title">
+                                        <span>🚪</span>
+                                        <span>Cubiertas / Tapa</span>
+                                    </div>
+                                    <span class="badge-pill ${isOpen ? 'danger' : 'ok'}">
+                                        ${isOpen ? '🔴 ABIERTA' : '🟢 Cerradas (OK)'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>`;
+                }
+            }
+
+            // Suministros
+            let suppliesHtml = '';
+            if (printer.suministros && printer.suministros.length > 0) {
+                suppliesHtml = '<div class="section-title">Suministros de impresión</div><div class="supply-list">';
+                printer.suministros.forEach(s => {
+                    const pct = s.porcentaje;
+                    const pctClass = supplyPctClass(pct);
+                    const pctText = pct === null || pct === undefined ? 'N/D' : pct + '%';
+                    const width = pct === null || pct === undefined ? 0 : Math.min(100, Math.max(0, pct));
+                    const fillClass = progressColorClass(pct);
+                    suppliesHtml += `
+                        <div class="supply-item">
+                            <div class="supply-type">${escapeHtml((s.tipo || 'Suministro').toUpperCase())}</div>
+                            <div class="supply-header">
+                                <span class="supply-name" title="${escapeHtml(s.descripcion || '')}">${escapeHtml(s.descripcion || 'Cartucho')}</span>
+                                <span class="supply-pct ${pctClass}">${pctText}</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${fillClass}" style="width: ${width}%"></div>
+                            </div>
+                        </div>`;
+                });
+                suppliesHtml += '</div>';
+            } else {
+                suppliesHtml = '<div class="supply-list"><p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding: 0.5rem;">Sin información de suministros</p></div>';
+            }
+
+            card.innerHTML = `
+                <div class="card-header">
+                    <h3>
+                        <span class="status-dot ${offline ? 'offline' : 'online'}"></span>
+                        ${escapeHtml(printer.modelo || 'Desconocido')}
+                    </h3>
+                    <span class="host-chip">${escapeHtml(printer.host)}</span>
+                </div>
+                <div class="card-body">
+                    ${alertsHtml}
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="label">Nº Serie</div>
+                            <div class="value">${escapeHtml(printer.serie || 'Desconocido')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Estado SNMP</div>
+                            <div class="value" style="color: ${offline ? 'var(--status-offline)' : 'var(--status-online)'}">
+                                ${offline ? 'Sin respuesta' : 'En línea'}
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Contador Total</div>
+                            <div class="value">${formatNumber(printer.contador_total)}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Mono / Color</div>
+                            <div class="value">
+                                <span class="mono">${formatNumber(printer.contador_mono)}</span> /
+                                <span class="color">${formatNumber(printer.contador_color)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${doorsHtml}
+                    ${suppliesHtml}
+                </div>
+            `;
+
+            return card;
+        }
+
+        async function queryPrinters(showLoading = true) {
+            const hosts = hostsInput.value.trim();
+            const community = document.getElementById('community').value.trim() || 'public';
+            const port = document.getElementById('port').value || '161';
+            const timeout = document.getElementById('timeout').value || '3';
+
+            if (!hosts) {
+                showError('Ingresa al menos una dirección IP de impresora.');
+                return;
+            }
+
+            btnQuery.disabled = true;
+            errorBanner.classList.remove('active');
+            errorBanner.textContent = '';
+
+            if (showLoading) {
+                loadingEl.classList.add('active');
+                printerGrid.innerHTML = '';
+                emptyState.classList.remove('active');
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    hosts: hosts,
+                    community: community,
+                    port: port,
+                    timeout: timeout
+                });
+
+                const res = await fetch('/api/printers?' + params.toString());
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showError(data.error || 'Error al consultar las impresoras.');
+                    return;
+                }
+
+                renderResults(data);
+            } catch (e) {
+                showError('Error de conexión con el servidor API: ' + e.message);
+            } finally {
+                loadingEl.classList.remove('active');
+                btnQuery.disabled = false;
+            }
+        }
+
+        function renderResults(data) {
+            const printers = data.impresoras || [];
+            const errors = data.errores || [];
+            currentPrintersData = printers;
+
+            printerGrid.innerHTML = '';
+
+            if (printers.length === 0 && errors.length === 0) {
+                emptyState.classList.add('active');
+                return;
+            }
+
+            emptyState.classList.remove('active');
+
+            if (errors.length > 0) {
+                const errText = errors.map(e => `${e.host}: ${e.error}`).join(' | ');
+                showError('Atención al consultar algunos hosts: ' + errText);
+            }
+
+            printers.forEach(p => {
+                printerGrid.appendChild(renderPrinterCard(p));
+            });
+        }
+
+        function showError(msg) {
+            errorBanner.textContent = '⚠️ ' + msg;
+            errorBanner.classList.add('active');
+        }
+
+        function exportToExcel() {
+            if (!currentPrintersData || currentPrintersData.length === 0) {
+                showError('No hay datos de impresoras para exportar. Realiza una consulta primero.');
+                return;
+            }
+
+            const rows = [];
+            currentPrintersData.forEach(p => {
+                const offline = !p.en_linea;
+                const estadoStr = offline ? 'Sin respuesta' : 'En linea';
+                const pAbiertaStr = p.puerta_abierta ? 'SI (Abierta)' : 'No';
+                const fPapelStr = p.falta_papel ? 'SI (Falta Papel)' : 'No';
+                const sTonerStr = p.sin_toner ? 'SI (Sin Toner)' : 'No';
+                const supplies = p.suministros || [];
+
+                if (supplies.length === 0) {
+                    rows.push({
+                        "Host / IP": p.host || '',
+                        "Modelo": p.modelo || 'Desconocido',
+                        "Numero de Serie": p.serie || 'Desconocido',
+                        "Estado": estadoStr,
+                        "Puerta Abierta": pAbiertaStr,
+                        "Falta Papel": fPapelStr,
+                        "Sin Toner": sTonerStr,
+                        "Contador Total": p.contador_total || 0,
+                        "Contador Monocromo": p.contador_mono || 0,
+                        "Contador Color": p.contador_color || 0,
+                        "Descripcion Suministro": "N/A",
+                        "Tipo Suministro": "N/A",
+                        "Nivel (%)": "N/A",
+                        "Capacidad": "N/A"
+                    });
+                } else {
+                    supplies.forEach(s => {
+                        const pctText = (s.porcentaje === null || s.porcentaje === undefined) ? 'N/D' : s.porcentaje + '%';
+                        rows.push({
+                            "Host / IP": p.host || '',
+                            "Modelo": p.modelo || 'Desconocido',
+                            "Numero de Serie": p.serie || 'Desconocido',
+                            "Estado": estadoStr,
+                            "Puerta Abierta": pAbiertaStr,
+                            "Falta Papel": fPapelStr,
+                            "Sin Toner": sTonerStr,
+                            "Contador Total": p.contador_total || 0,
+                            "Contador Monocromo": p.contador_mono || 0,
+                            "Contador Color": p.contador_color || 0,
+                            "Descripcion Suministro": s.descripcion || 'Suministro',
+                            "Tipo Suministro": s.tipo || 'Desconocido',
+                            "Nivel (%)": pctText,
+                            "Capacidad": s.capacidad || 0
+                        });
+                    });
+                }
+            });
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hour = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const filename = `monitor_impresoras_${year}${month}${day}_${hour}${min}.xlsx`;
+
+            if (window.XLSX) {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wscols = [
+                    { wch: 18 }, // Host / IP
+                    { wch: 32 }, // Modelo
+                    { wch: 20 }, // Serie
+                    { wch: 15 }, // Estado
+                    { wch: 16 }, // Puerta Abierta
+                    { wch: 16 }, // Falta Papel
+                    { wch: 15 }, // Sin Toner
+                    { wch: 16 }, // Contador Total
+                    { wch: 18 }, // Contador Mono
+                    { wch: 16 }, // Contador Color
+                    { wch: 38 }, // Suministro
+                    { wch: 20 }, // Tipo
+                    { wch: 12 }, // Nivel
+                    { wch: 12 }  // Capacidad
+                ];
+                ws['!cols'] = wscols;
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Impresoras");
+                XLSX.writeFile(wb, filename);
+            } else {
+                let csvContent = "\uFEFF";
+                const headers = Object.keys(rows[0]);
+                csvContent += headers.join(";") + "\n";
+
+                rows.forEach(row => {
+                    const line = headers.map(h => `"${String(row[h]).replace(/"/g, '""')}"`).join(";");
+                    csvContent += line + "\n";
+                });
+
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename.replace('.xlsx', '.csv'));
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        function setupAutoRefresh() {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            if (autoRefresh.checked) {
+                autoRefreshTimer = setInterval(() => {
+                    if (!btnQuery.disabled) {
+                        queryPrinters(false);
+                    }
+                }, 60000);
+            }
+        }
+
+        btnQuery.addEventListener('click', () => queryPrinters());
+        btnExport.addEventListener('click', () => exportToExcel());
+
+        btnClear.addEventListener('click', () => {
+            hostsInput.value = '';
+            printerGrid.innerHTML = '';
+            currentPrintersData = [];
+            emptyState.classList.add('active');
+            errorBanner.classList.remove('active');
+        });
+
+        autoRefresh.addEventListener('change', setupAutoRefresh);
+
+        hostsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                queryPrinters();
+            }
+        });
+
+        // Control de Pestañas
+        document.querySelectorAll('.nav-tab').forEach(tabBtn => {
+            tabBtn.addEventListener('click', () => {
+                const targetTab = tabBtn.getAttribute('data-tab');
+                document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tabBtn.classList.add('active');
+                document.getElementById(targetTab).classList.add('active');
+            });
+        });
+
+        const btnGoMonitor = document.getElementById('btn-go-monitor');
+        if (btnGoMonitor) {
+            btnGoMonitor.addEventListener('click', () => {
+                const monitorTabBtn = document.querySelector('.nav-tab[data-tab="tab-monitor"]');
+                if (monitorTabBtn) monitorTabBtn.click();
+            });
+        }
+
+        // Inicialización
+        checkApi();
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryHosts = urlParams.get('hosts');
+        if (queryHosts && !hostsInput.value) {
+            hostsInput.value = queryHosts;
+        }
+
+        if (hostsInput.value.trim()) {
+            const monitorTabBtn = document.querySelector('.nav-tab[data-tab="tab-monitor"]');
+            if (monitorTabBtn) monitorTabBtn.click();
+            queryPrinters();
+        } else {
+            emptyState.classList.add('active');
+        }
+    </script>
+</body>
+</html>

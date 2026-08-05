@@ -1028,6 +1028,243 @@
             border-top: 1px solid rgba(255, 255, 255, 0.05);
             margin-top: 2rem;
         }
+
+        /* =====================================================
+           RESPONSIVE — TABLET (≤ 768px)
+        ===================================================== */
+        @media (max-width: 768px) {
+            /* Header */
+            .header {
+                padding: 0.9rem 1rem;
+                gap: 0.5rem;
+            }
+            .brand h1 {
+                font-size: 1rem;
+            }
+            .brand-icon {
+                font-size: 1.4rem;
+            }
+            .status-badge {
+                font-size: 0.72rem;
+                padding: 0.3rem 0.65rem;
+            }
+
+            /* Container */
+            .container {
+                padding: 1rem;
+            }
+
+            /* Nav tabs — horizontal scroll en mobile */
+            .nav-tabs {
+                padding: 0 0.5rem;
+                gap: 0.2rem;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                flex-wrap: nowrap;
+                margin: 0.8rem auto 0;
+            }
+            .nav-tabs::-webkit-scrollbar { display: none; }
+            .nav-tab {
+                font-size: 0.8rem;
+                padding: 0.65rem 0.9rem;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            /* Panel de configuración */
+            .config-panel {
+                padding: 1rem;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+            .btn-row {
+                gap: 0.6rem;
+            }
+            .btn {
+                padding: 0.65rem 1rem;
+                font-size: 0.82rem;
+            }
+            .auto-refresh {
+                margin-left: 0;
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            /* Grid de impresoras — 1 columna */
+            .printer-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            /* Info grid dentro de tarjeta — 2 columnas siguen bien */
+            .info-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.6rem;
+            }
+
+            /* Bienvenida */
+            .welcome-card {
+                padding: 1.5rem 1rem;
+            }
+            .welcome-hero-title {
+                font-size: 1.5rem;
+            }
+            .welcome-hero-sub {
+                font-size: 0.9rem;
+                margin-bottom: 1.2rem;
+            }
+            .btn-welcome-cta {
+                padding: 0.75rem 1.4rem;
+                font-size: 0.9rem;
+                margin-bottom: 1.5rem;
+            }
+            .welcome-features-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .welcome-img-wrapper {
+                border-radius: 12px;
+            }
+
+            /* ¿Qué hace esta aplicación? */
+            .about-card {
+                padding: 1.2rem;
+            }
+            .about-card h2 {
+                font-size: 1.25rem;
+            }
+            .about-feature-list li {
+                padding: 0.7rem 0.9rem;
+                font-size: 0.85rem;
+            }
+
+            /* Quiénes Somos */
+            .team-banner-bg {
+                max-height: 220px;
+            }
+            .team-banner-title {
+                font-size: 1.5rem;
+            }
+            .team-banner-sub {
+                font-size: 0.9rem;
+            }
+            .team-body {
+                padding: 1.2rem;
+            }
+            .profiles-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .profile-name {
+                font-size: 1rem;
+            }
+            .profile-role {
+                font-size: 0.78rem;
+            }
+            .vision-box {
+                padding: 1.2rem;
+            }
+        }
+
+        /* =====================================================
+           RESPONSIVE — MÓVIL PEQUEÑO (≤ 480px)
+        ===================================================== */
+        @media (max-width: 480px) {
+            /* Header compacto */
+            .header {
+                padding: 0.7rem 0.8rem;
+            }
+            .brand h1 {
+                font-size: 0.88rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 160px;
+            }
+
+            /* Info grid — 1 sola columna en móvil muy pequeño */
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Card header */
+            .card-header h3 {
+                font-size: 0.9rem;
+            }
+            .host-chip {
+                font-size: 0.68rem;
+                padding: 0.2rem 0.5rem;
+            }
+
+            /* Botones de acción */
+            .btn-row {
+                flex-direction: column;
+            }
+            .btn, .btn-secondary, .btn-excel {
+                width: 100%;
+                justify-content: center;
+            }
+            .auto-refresh {
+                justify-content: center;
+            }
+
+            /* Bienvenida */
+            .welcome-hero-title {
+                font-size: 1.25rem;
+            }
+            .welcome-hero-sub {
+                font-size: 0.82rem;
+            }
+            .btn-welcome-cta {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Tabs — más compactos */
+            .nav-tab {
+                font-size: 0.72rem;
+                padding: 0.55rem 0.7rem;
+                gap: 0.25rem;
+            }
+
+            /* Quiénes Somos */
+            .team-banner-bg {
+                max-height: 170px;
+            }
+            .team-banner-title {
+                font-size: 1.2rem;
+            }
+            .team-banner-sub {
+                font-size: 0.8rem;
+            }
+            .team-body {
+                padding: 1rem 0.9rem;
+            }
+            .profile-header {
+                gap: 0.7rem;
+            }
+            .profile-avatar {
+                font-size: 1.6rem;
+                width: 44px;
+                height: 44px;
+                min-width: 44px;
+            }
+
+            /* About */
+            .about-highlight-box {
+                padding: 0.9rem 1rem;
+                font-size: 0.88rem;
+            }
+
+            /* Footer */
+            footer {
+                font-size: 0.72rem;
+                padding: 1.2rem 1rem;
+            }
+        }
     </style>
 </head>
 <body>
